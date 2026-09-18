@@ -1,6 +1,7 @@
 import numpy as np
 from matplotlib.colors import LinearSegmentedColormap
 from matplotlib.patches import Wedge, FancyArrowPatch
+from matplotlib.ticker import MultipleLocator
 
 from core.config import HEATMAP, VISUALIZATION
 from views.mpl_widget import TimedMplWidget
@@ -10,12 +11,13 @@ class HeatmapView(TimedMplWidget):
     def __init__(self, vm, parent=None):
         super().__init__(vm, parent)
         self.max_range = HEATMAP.max_range_mm
+        self._x_half = self.max_range - VISUALIZATION.x_axis_clip_mm
 
         self.ax = self.figure.add_subplot(111)
         self.ax.set_facecolor(VISUALIZATION.background_color)
         self.figure.set_facecolor(VISUALIZATION.background_color)
         self.ax.grid(True, alpha=VISUALIZATION.grid_alpha)
-        self.ax.set_xlim(-self.max_range, self.max_range)
+        self.ax.set_xlim(-self._x_half, self._x_half)
         self.ax.set_ylim(0, self.max_range)
         self.ax.set_aspect("equal", adjustable="box")
         self.ax.set_autoscale_on(False)
@@ -92,18 +94,15 @@ class HeatmapView(TimedMplWidget):
         if pixel_w <= 0 or pixel_h <= 0:
             return
 
-        span_x = 2.0 * self.max_range
-        span_y = self.max_range
-        if span_x / pixel_w < span_y / pixel_h:
-            span_x = span_y * (pixel_w / pixel_h)
-        else:
-            span_y = span_x * (pixel_h / pixel_w)
+        span_x = 2.0 * self._x_half
+        span_y = max(self.max_range, span_x * (pixel_h / pixel_w))
 
         extra_y = max(0.0, span_y - self.max_range)
         y_min = -extra_y * 0.12
         self.ax.set_xlim(-span_x / 2.0, span_x / 2.0)
         self.ax.set_ylim(y_min, y_min + span_y)
         self.ax.set_aspect("equal", adjustable="box")
+        self.ax.xaxis.set_major_locator(MultipleLocator(2000))
         self._apply_inner_ticks()
         self.canvas.draw_idle()
 

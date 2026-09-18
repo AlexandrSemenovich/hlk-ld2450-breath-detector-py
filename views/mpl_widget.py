@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QSizePolicy
-from PySide6.QtCore import QTimer
+from PySide6.QtCore import QTimer, QSize
 
 from core.config import VISUALIZATION
 
@@ -11,7 +11,7 @@ class TimedMplWidget(QWidget):
     def __init__(self, vm, parent=None):
         super().__init__(parent)
         self.vm = vm
-        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Ignored)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -19,8 +19,10 @@ class TimedMplWidget(QWidget):
 
         self.figure = plt.figure(facecolor=VISUALIZATION.background_color)
         self.canvas = FigureCanvas(self.figure)
-        self.canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.canvas.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Ignored)
         self.canvas.setMinimumSize(0, 0)
+        self.canvas.sizeHint = lambda: QSize(0, 0)
+        self.canvas.minimumSizeHint = lambda: QSize(0, 0)
         layout.addWidget(self.canvas)
 
         self._latest = None
@@ -28,6 +30,12 @@ class TimedMplWidget(QWidget):
         self._render_timer.setInterval(VISUALIZATION.render_interval_ms)
         self._render_timer.timeout.connect(self._render)
         vm.updated.connect(self._on_update)
+
+    def sizeHint(self):
+        return QSize(0, 0)
+
+    def minimumSizeHint(self):
+        return QSize(0, 0)
 
     def start(self):
         self._render_timer.start()

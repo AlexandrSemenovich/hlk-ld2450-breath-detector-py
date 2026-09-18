@@ -45,6 +45,7 @@ class VisualizationConfig:
     heat_alpha: float = 0.38
     fov_deg: float = 60.0
     ring_step_mm: int = 1000
+    x_axis_clip_mm: int = 500
     scene_trail_ms: int = 2000
     moving_speed_cm_s: int = 20
     vector_scale: float = 12.0
@@ -220,13 +221,17 @@ def build_stylesheet(theme: Theme = None, typo: Typography = None) -> str:
         border-radius: {UI.status_led_size // 2}px;
         background-color: {theme.status_off};
     }}
-    QFrame#OccupancyStatus {{
-        background-color: {theme.occupancy_off_bg};
-        border: 2px solid {theme.occupancy_off};
+    QFrame#MovementStatus {{
+        background-color: {theme.bg_panel};
+        border: 1px solid {theme.border};
         border-radius: 10px;
     }}
-    QFrame#OccupancyStatus QLabel {{
+    QFrame#MovementStatus QLabel {{
         background: transparent;
+    }}
+    QFrame#MovementRow {{
+        background-color: {theme.bg_app};
+        border-radius: 8px;
     }}
     QPlainTextEdit#RawTerminal {{
         background-color: {theme.raw_bg};
