@@ -1,14 +1,13 @@
-from PySide6.QtWidgets import (QMainWindow, QWidget, QHBoxLayout, QVBoxLayout,
-                               QTabWidget, QPushButton, QLabel, QFrame)
+from PySide6.QtWidgets import (
+    QMainWindow, QWidget, QTabWidget, QLabel, QFrame, QHBoxLayout,
+)
 
-from core.config import UI
+from core.config import UI, THEME
 from viewmodels.connection_vm import ConnectionViewModel
 from viewmodels.settings_vm import SettingsViewModel
 from viewmodels.heatmap_vm import HeatmapViewModel
-from views.connection_panel import ConnectionPanel
-from views.settings_panel import SettingsPanel
-from views.info_panel import InfoPanel
-from views.heatmap_view import HeatmapView
+from views.connection_page import ConnectionPage
+from views.visualization_page import VisualizationPage
 
 
 class MainWindow(QMainWindow):
@@ -20,36 +19,19 @@ class MainWindow(QMainWindow):
         self.setWindowTitle(UI.window_title)
         self.resize(UI.window_width, UI.window_height)
 
-        central = QWidget()
-        self.setCentralWidget(central)
-        main_layout = QHBoxLayout(central)
-        main_layout.setSpacing(UI.panel_spacing)
-        main_layout.setContentsMargins(UI.content_margin, UI.content_margin,
-                                        UI.content_margin, UI.content_margin)
+        self.connection_page = ConnectionPage(connection_vm, settings_vm)
+        self.visualization_page = VisualizationPage(heatmap_vm)
 
-        left = QWidget()
-        left_layout = QVBoxLayout(left)
-        left_layout.setSpacing(UI.panel_spacing)
-        left_layout.setContentsMargins(0, 0, 0, 0)
-
-        self.connection_panel = ConnectionPanel(connection_vm)
-        self.settings_panel = SettingsPanel(settings_vm)
-        self.info_panel = InfoPanel()
-
-        left_layout.addWidget(self.connection_panel)
-        left_layout.addWidget(self.settings_panel)
-        left_layout.addWidget(self.info_panel)
-        left_layout.addStretch()
-
-        self.clear_btn = QPushButton("Очистить карту")
-        left_layout.addWidget(self.clear_btn)
-
-        main_layout.addWidget(left, stretch=UI.left_panel_stretch)
+        self.connection_panel = self.connection_page.connection_panel
+        self.settings_panel = self.connection_page.settings_panel
+        self.info_panel = self.connection_page.info_panel
+        self.clear_btn = self.connection_page.clear_btn
+        self.heatmap_view = self.visualization_page.heatmap_view
 
         self.tabs = QTabWidget()
-        self.heatmap_view = HeatmapView(heatmap_vm)
-        self.tabs.addTab(self.heatmap_view, "Heatmap")
-        main_layout.addWidget(self.tabs, stretch=UI.right_panel_stretch)
+        self.tabs.addTab(self.connection_page, "Настройки подключений")
+        self.tabs.addTab(self.visualization_page, "Визуализация")
+        self.setCentralWidget(self.tabs)
 
         self._init_status_bar(connection_vm)
 
@@ -61,13 +43,25 @@ class MainWindow(QMainWindow):
         bar.setSizeGripEnabled(True)
         bar.setMinimumHeight(UI.status_bar_min_height)
 
+        self.connection_status_led = QFrame()
+        self.connection_status_led.setObjectName("StatusLed")
+        self.connection_status_led.setFixedSize(UI.status_led_size, UI.status_led_size)
         self.connection_status_label = QLabel("Статус: отключено")
+        self._set_status_led(False)
+
+        status_wrap = QWidget()
+        status_row = QHBoxLayout(status_wrap)
+        status_row.setContentsMargins(10, 0, 10, 0)
+        status_row.setSpacing(8)
+        status_row.addWidget(self.connection_status_led)
+        status_row.addWidget(self.connection_status_label)
+
         self.connection_info_label = QLabel(
             "Порт: —    Скорость: —    Формат: —    Timeout: —"
         )
         self.words_label = QLabel("Слов: 0")
 
-        bar.addWidget(self.connection_status_label)
+        bar.addWidget(status_wrap)
         bar.addWidget(self._status_separator())
         bar.addWidget(self.connection_info_label, 1)
         bar.addPermanentWidget(self._status_separator())
@@ -83,8 +77,17 @@ class MainWindow(QMainWindow):
         line.setFrameShadow(QFrame.Shadow.Sunken)
         return line
 
-    def _on_connection_status(self, _ok: bool, message: str):
+    def _on_connection_status(self, ok: bool, message: str):
+        self._set_status_led(ok)
         self.connection_status_label.setText(f"Статус: {message}")
+
+    def _set_status_led(self, ok: bool):
+        color = THEME.status_on if ok else THEME.status_off
+        radius = UI.status_led_size // 2
+        self.connection_status_led.setStyleSheet(
+            f"background-color: {color}; border-radius: {radius}px;"
+            "border: 1px solid rgba(0, 0, 0, 40);"
+        )
 
     def _on_connection_info(self, text: str):
         self.connection_info_label.setText(text)

@@ -37,6 +37,7 @@ def main():
 
     worker.frameReady.connect(heatmap_vm.ingest)
     worker.frameReady.connect(info_panel.update_frame)
+    worker.rawReady.connect(info_panel.append_raw)
     heatmap_vm.updated.connect(lambda payload: info_panel.update_stats(payload["stats"]))
 
     window.clear_btn.clicked.connect(heatmap_vm.clear)

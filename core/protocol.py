@@ -11,19 +11,28 @@ def parse_raw_line(line: str) -> RadarFrame | None:
         return None
 
     try:
-        x = int(parts[0])
-        y = int(parts[1])
-        speed = int(parts[2])
-        resolution = int(parts[3])
+        targets = (
+            _parse_target(parts, 0),
+            _parse_target(parts, 4),
+            _parse_target(parts, 8),
+        )
         timestamp_ms = int(parts[12])
         frame_id = parts[13]
     except (ValueError, IndexError):
         return None
 
-    target = Target(x=x, y=y, speed=speed, resolution=resolution)
     return RadarFrame(
-        target=target,
+        targets=targets,
         timestamp_ms=timestamp_ms,
         frame_id=frame_id,
         raw_line=line,
+    )
+
+
+def _parse_target(parts: list[str], offset: int) -> Target:
+    return Target(
+        x=int(parts[offset]),
+        y=int(parts[offset + 1]),
+        speed=int(parts[offset + 2]),
+        resolution=int(parts[offset + 3]),
     )

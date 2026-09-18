@@ -28,7 +28,7 @@ class VisualizationConfig:
     grid_alpha: float = 0.25
     axis_x_label: str = "X (mm)"
     axis_y_label: str = "Y (mm)"
-    title: str = "Heatmap (fading trails) — Target0 only"
+    title: str = "Heatmap (fading trails) — Target 0–2"
     colormap: tuple = (
         "#ffffff", "#dbeafe", "#93c5fd", "#60a5fa",
         "#34d399", "#fde047", "#fb923c", "#ef4444",
@@ -40,6 +40,8 @@ class VisualizationConfig:
     point_size: int = 130
     point_edge_color: str = "black"
     point_edge_width: float = 1.2
+    target_colors: tuple = ("#d32f2f", "#1565c0", "#2e7d32")
+    target_labels: tuple = ("Target 0", "Target 1", "Target 2")
 
 
 @dataclass(frozen=True)
@@ -79,6 +81,8 @@ class Theme:
     disabled: str = "#b6c2cc"
     raw_bg: str = "#0e1116"
     raw_text: str = "#36e07a"
+    status_on: str = "#2e7d32"
+    status_off: str = "#c62828"
 
 
 @dataclass(frozen=True)
@@ -97,8 +101,16 @@ class UIConfig:
     right_panel_stretch: int = 4
     panel_spacing: int = 12
     content_margin: int = 12
+    settings_column_max_width: int = 520
+    viz_grid_row_stretch: tuple = (4, 1)
+    viz_grid_col_stretch: tuple = (4, 1)
     status_bar_min_height: int = 38
     status_bar_font_size: int = 11
+    status_led_size: int = 14
+    raw_history_lines: int = 300
+    raw_terminal_min_height: int = 240
+    target_font_size: int = 11
+    stats_font_size: int = 14
 
 
 def build_stylesheet(theme: Theme = None, typo: Typography = None) -> str:
@@ -182,6 +194,33 @@ def build_stylesheet(theme: Theme = None, typo: Typography = None) -> str:
     QStatusBar::item {{
         border: none;
     }}
+    QFrame#StatusLed {{
+        border: 1px solid rgba(0, 0, 0, 40);
+        min-width: {UI.status_led_size}px;
+        max-width: {UI.status_led_size}px;
+        min-height: {UI.status_led_size}px;
+        max-height: {UI.status_led_size}px;
+        border-radius: {UI.status_led_size // 2}px;
+        background-color: {theme.status_off};
+    }}
+    QFrame#PlotPlaceholder {{
+        background-color: {theme.bg_panel};
+        border: 2px dashed {theme.border};
+        border-radius: 10px;
+    }}
+    QFrame#PlotPlaceholder QLabel {{
+        color: {theme.text_secondary};
+        font-size: {typo.font_size + 1}pt;
+    }}
+    QPlainTextEdit#RawTerminal {{
+        background-color: {theme.raw_bg};
+        color: {theme.raw_text};
+        border: 1px solid #2a2f36;
+        border-radius: 8px;
+        padding: 8px;
+        font-family: "{typo.mono_family}";
+        font-size: {typo.font_size}pt;
+    }}
     """
 
 
@@ -205,6 +244,14 @@ class Styles:
     label_raw: str = (
         f"QLabel {{ background-color:{THEME.raw_bg}; color:{THEME.raw_text}; "
         f"border:1px solid #2a2f36; border-radius:8px; padding:10px; }}"
+    )
+    target_box: str = (
+        f"QLabel {{ background-color:{THEME.bg_panel}; border:1px solid {THEME.border}; "
+        f"border-radius:8px; padding:12px; color:{THEME.text_primary}; }}"
+    )
+    stats_box: str = (
+        f"QLabel {{ background-color:{THEME.bg_panel}; border:1px solid {THEME.border}; "
+        f"border-radius:8px; padding:14px; color:{THEME.text_primary}; }}"
     )
     status_box: str = (
         f"QLabel {{ background-color:{THEME.bg_panel}; border:1px solid {THEME.border}; "

@@ -14,7 +14,7 @@ class HeatmapModel:
         self.heat = np.zeros((self.bins_y, self.bins_x), dtype=np.float32)
         self.last_ts_ms = None
 
-        self.trail = deque()
+        self.trails = [deque(), deque(), deque()]
         self.history_max = config.history_max
 
         self.kernel_r = config.kernel_radius
@@ -77,8 +77,6 @@ class HeatmapModel:
             self.heat[yy0:yy1, xx0:xx1] += k[ky0:ky1, kx0:kx1] * add_value
 
     def ingest(self, frame):
-        x = frame.target.x
-        y = frame.target.y
         ts = frame.timestamp_ms
 
         tau = max(1, int(self.fade_time_ms))
@@ -89,29 +87,32 @@ class HeatmapModel:
             decay = float(np.exp(-10.0 / tau))
 
         self.heat *= decay
-
-        iy, ix = self._mm_to_bin(x, y)
         add_value = float(self.point_intensity) / self.intensity_baseline
-        self._add_kernel_to_heat(iy, ix, add_value)
-
         self.last_ts_ms = ts if (ts is not None and ts > 0) else self.last_ts_ms
 
-        self.trail.append((x, y, ts))
-        while len(self.trail) > self.history_max:
-            self.trail.popleft()
+        currents = []
+        for index, target in enumerate(frame.targets):
+            if not target.present:
+                currents.append((float("nan"), float("nan")))
+                continue
 
-        points = list(self.trail)
-        if ts is not None and ts > 0:
-            cutoff = ts - int(self.trail_time_ms)
-            pruned = [(px, py, pts) for (px, py, pts) in points if (pts is not None and pts > 0 and pts >= cutoff)]
-            if not pruned:
-                pruned = points[-int(self.trail_points_max):]
-            points = pruned
-        else:
-            points = points[-int(self.trail_points_max):]
+            x, y = target.x, target.y
+            iy, ix = self._mm_to_bin(x, y)
+            self._add_kernel_to_heat(iy, ix, add_value)
+            self.trails[index].append((x, y, ts))
+            while len(self.trails[index]) > self.history_max:
+                self.trails[index].popleft()
+            currents.append((x, y))
 
-        xs = [p[0] for p in points]
-        ys = [p[1] for p in points]
+        trails = []
+        trails_points = []
+        for trail in self.trails:
+            points = self._prune_trail(list(trail), ts)
+            trails.append({
+                "xs": [p[0] for p in points],
+                "ys": [p[1] for p in points],
+            })
+            trails_points.append(points)
 
         vmax_now = float(np.max(self.heat))
         if vmax_now < 1e-6:
@@ -123,44 +124,64 @@ class HeatmapModel:
         return {
             "heat": self.heat,
             "vmax": vmax,
-            "trail_xs": xs,
-            "trail_ys": ys,
-            "current": (x, y),
-            "stats": self._compute_stats(points),
+            "trails": trails,
+            "currents": currents,
+            "stats": self._compute_stats(trails_points),
         }
 
-    def _compute_stats(self, points):
-        n = len(points)
-        if n < 2:
+    def _prune_trail(self, points, ts):
+        if ts is not None and ts > 0:
+            cutoff = ts - int(self.trail_time_ms)
+            pruned = [
+                (px, py, pts) for (px, py, pts) in points
+                if (pts is not None and pts > 0 and pts >= cutoff)
+            ]
+            if not pruned:
+                pruned = points[-int(self.trail_points_max):]
+            return pruned
+        return points[-int(self.trail_points_max):]
+
+    def _compute_stats(self, trails_points):
+        heat_sum = float(np.sum(self.heat))
+        n = sum(len(points) for points in trails_points)
+        if n == 0:
             return {
-                "points": n,
+                "points": 0,
                 "max_y": 0.0,
                 "distance_m": 0.0,
-                "heat_sum": float(np.sum(self.heat)),
+                "heat_sum": heat_sum,
             }
 
-        xs = np.array([p[0] for p in points], dtype=np.float64)
-        ys = np.array([p[1] for p in points], dtype=np.float64)
-        dist_mm = float(np.sqrt(np.diff(xs) ** 2 + np.diff(ys) ** 2).sum())
+        max_y = 0.0
+        dist_mm = 0.0
+        for points in trails_points:
+            if not points:
+                continue
+            ys = np.array([p[1] for p in points], dtype=np.float64)
+            max_y = max(max_y, float(np.max(ys)))
+            if len(points) >= 2:
+                xs = np.array([p[0] for p in points], dtype=np.float64)
+                dist_mm += float(np.sqrt(np.diff(xs) ** 2 + np.diff(ys) ** 2).sum())
 
         return {
             "points": n,
-            "max_y": float(np.max(ys)),
+            "max_y": max_y,
             "distance_m": dist_mm / 1000.0,
-            "heat_sum": float(np.sum(self.heat)),
+            "heat_sum": heat_sum,
         }
 
     def snapshot(self):
+        empty = {"xs": [], "ys": []}
         return {
             "heat": self.heat,
             "vmax": 1.0,
-            "trail_xs": [],
-            "trail_ys": [],
-            "current": (float("nan"), float("nan")),
+            "trails": [empty, empty, empty],
+            "currents": [(float("nan"), float("nan"))] * 3,
             "stats": self._compute_stats([]),
         }
 
     def clear(self):
         self.heat[:] = 0.0
         self.last_ts_ms = None
-        self.trail.clear()
+        for trail in self.trails:
+            trail.clear()

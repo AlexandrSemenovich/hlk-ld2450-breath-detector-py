@@ -8,10 +8,18 @@ class Target:
     speed: int
     resolution: int
 
+    @property
+    def present(self) -> bool:
+        return not (self.x == 0 and self.y == 0 and self.speed == 0)
+
 
 @dataclass
 class RadarFrame:
-    target: Target
+    targets: tuple[Target, Target, Target]
     timestamp_ms: int
     frame_id: str
     raw_line: str
+
+    @property
+    def target(self) -> Target:
+        return self.targets[0]

@@ -16,6 +16,8 @@ class HeatmapView(QWidget):
         self.vm = vm
         self.max_range = HEATMAP.max_range_mm
 
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
@@ -23,6 +25,7 @@ class HeatmapView(QWidget):
         self.figure = plt.figure(facecolor=VISUALIZATION.background_color)
         self.canvas = FigureCanvas(self.figure)
         self.canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.canvas.setMinimumSize(0, 0)
 
         self.ax = self.figure.add_subplot(111)
 
@@ -50,14 +53,22 @@ class HeatmapView(QWidget):
             vmax=1,
         )
 
-        self.trail_line, = self.ax.plot(
-            [], [], color=VISUALIZATION.trail_color,
-            lw=VISUALIZATION.trail_linewidth, alpha=VISUALIZATION.trail_alpha, zorder=4,
-        )
-        self.current_point = self.ax.scatter(
-            [], [], c=VISUALIZATION.point_color, s=VISUALIZATION.point_size,
-            edgecolors=VISUALIZATION.point_edge_color, linewidths=VISUALIZATION.point_edge_width, zorder=6,
-        )
+        self.trail_lines = []
+        self.current_points = []
+        for color, label in zip(VISUALIZATION.target_colors, VISUALIZATION.target_labels):
+            trail_line, = self.ax.plot(
+                [], [], color=color,
+                lw=VISUALIZATION.trail_linewidth, alpha=VISUALIZATION.trail_alpha,
+                zorder=4, label=label,
+            )
+            current_point = self.ax.scatter(
+                [], [], c=color, s=VISUALIZATION.point_size,
+                edgecolors=VISUALIZATION.point_edge_color,
+                linewidths=VISUALIZATION.point_edge_width, zorder=6,
+            )
+            self.trail_lines.append(trail_line)
+            self.current_points.append(current_point)
+        self.ax.legend(loc="upper right", framealpha=0.9)
 
         layout.addWidget(self.canvas)
 
@@ -89,8 +100,10 @@ class HeatmapView(QWidget):
         p = self._latest
         self.heat_img.set_data(p["heat"])
         self.heat_img.set_clim(0.0, p["vmax"])
-        self.trail_line.set_data(p["trail_xs"], p["trail_ys"])
-        self.current_point.set_offsets(np.array([p["current"]], dtype=np.float64))
+        for trail_line, trail in zip(self.trail_lines, p["trails"]):
+            trail_line.set_data(trail["xs"], trail["ys"])
+        for point, current in zip(self.current_points, p["currents"]):
+            point.set_offsets(np.array([current], dtype=np.float64))
         self.canvas.draw_idle()
 
     def start(self):
@@ -100,6 +113,8 @@ class HeatmapView(QWidget):
         self._latest = None
         self.heat_img.set_data(np.zeros_like(self.heat))
         self.heat_img.set_clim(0.0, 1.0)
-        self.trail_line.set_data([], [])
-        self.current_point.set_offsets(np.array([[np.nan, np.nan]], dtype=np.float64))
+        empty = np.array([[np.nan, np.nan]], dtype=np.float64)
+        for trail_line, point in zip(self.trail_lines, self.current_points):
+            trail_line.set_data([], [])
+            point.set_offsets(empty)
         self.canvas.draw_idle()
