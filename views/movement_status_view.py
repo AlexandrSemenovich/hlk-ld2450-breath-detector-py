@@ -65,6 +65,7 @@ class MovementStatusView(QFrame):
                 "detail": detail,
                 "action_full": "нет цели",
                 "detail_full": "—",
+                "zone_color": None,
             })
 
         layout.addStretch()
@@ -81,15 +82,23 @@ class MovementStatusView(QFrame):
         self._apply_elide()
 
     def _on_update(self, payload: dict):
+        if not self.isVisible():
+            return
         currents = payload.get("currents") or []
+        changed = False
         for index, row in enumerate(self.rows):
             current = currents[index] if index < len(currents) else None
             action, detail = self._describe(current)
-            row["action_full"] = action
-            row["detail_full"] = detail
             color = current.get("zone_color") if current else None
-            row["action"].setStyleSheet(f"color: {color};" if color else "")
-        self._apply_elide()
+            if row["action_full"] != action or row["detail_full"] != detail:
+                row["action_full"] = action
+                row["detail_full"] = detail
+                changed = True
+            if row["zone_color"] != color:
+                row["zone_color"] = color
+                row["action"].setStyleSheet(f"color: {color};" if color else "")
+        if changed:
+            self._apply_elide()
 
     def _apply_elide(self):
         for row in self.rows:

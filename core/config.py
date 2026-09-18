@@ -6,8 +6,10 @@ class SerialConfig:
     default_port: str = "COM3"
     default_baud: int = 921600
     available_ports: tuple = ("COM3", "COM4", "COM5", "COM6", "/dev/ttyUSB0")
-    read_timeout_s: float = 0.01
-    poll_interval_ms: int = 5
+    read_timeout_s: float = 0.0
+    poll_interval_ms: int = 10
+    max_lines_per_poll: int = 48
+    max_ingest_frames: int = 16
     stats_interval_ms: int = 250
     data_format: str = (
         "R x0,y0,v0,r0, x1,y1,v1,r1, x2,y2,v2,r2, ts_ms, frame_id  "
@@ -21,7 +23,7 @@ class HeatmapConfig:
     bins: int = 90
     kernel_radius: int = 4
     kernel_sigma: float = 1.6
-    history_max: int = 5000
+    history_max: int = 1200
     intensity_baseline: float = 80.0
     contrast_divisor: float = 100.0
 
@@ -88,7 +90,7 @@ class SettingsDefaults:
     point_intensity: int = 80
     trail_time_ms: int = 2500
     trail_points_max: int = 1200
-    mirror_x: bool = False
+    mirror_x: bool = True
 
 
 @dataclass(frozen=True)
@@ -103,7 +105,7 @@ RANGES = {
     "fade_time_ms": SpinRange(200, 20000, 100),
     "point_intensity": SpinRange(10, 200, 5),
     "trail_time_ms": SpinRange(200, 20000, 100),
-    "trail_points_max": SpinRange(50, 5000, 50),
+    "trail_points_max": SpinRange(50, 1200, 50),
 }
 
 

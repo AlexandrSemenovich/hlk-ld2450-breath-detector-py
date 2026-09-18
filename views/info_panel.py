@@ -6,9 +6,9 @@ from PySide6.QtWidgets import (
     QAbstractScrollArea,
 )
 from PySide6.QtGui import QFont, QTextOption
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 
-from core.config import STYLES, TYPO, UI, SERIAL
+from core.config import STYLES, TYPO, UI, SERIAL, VISUALIZATION
 from core.frame import RadarFrame, Target
 from viewmodels.settings_vm import SettingsViewModel
 
@@ -27,6 +27,8 @@ class InfoPanel(QWidget):
         super().__init__(parent)
         self.settings = settings_vm
         self._last_frame = None
+        self._frame_dirty = False
+        self._raw_pending: list[str] = []
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
         layout = QVBoxLayout(self)
@@ -127,6 +129,7 @@ class InfoPanel(QWidget):
         self.raw_terminal = QPlainTextEdit()
         self.raw_terminal.setObjectName("RawTerminal")
         self.raw_terminal.setReadOnly(True)
+        self.raw_terminal.setUndoRedoEnabled(False)
         self.raw_terminal.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
         self.raw_terminal.setWordWrapMode(QTextOption.WrapMode.NoWrap)
         self.raw_terminal.setMaximumBlockCount(UI.raw_history_lines)
@@ -147,6 +150,11 @@ class InfoPanel(QWidget):
         stats_layout.addWidget(self.stats_label)
         self.stats_group.setLayout(stats_layout)
 
+        self._ui_timer = QTimer(self)
+        self._ui_timer.setInterval(VISUALIZATION.render_interval_ms)
+        self._ui_timer.timeout.connect(self._flush_ui)
+        self._ui_timer.start()
+
         if settings_vm is not None:
             settings_vm.changed.connect(self._refresh_frame)
 
@@ -154,9 +162,13 @@ class InfoPanel(QWidget):
         super().showEvent(event)
         self._fit_channel_table()
 
-    def update_frame(self, frame: RadarFrame):
+    def update_frame(self, frame: RadarFrame | list | tuple):
+        if isinstance(frame, (list, tuple)):
+            if not frame:
+                return
+            frame = frame[-1]
         self._last_frame = frame
-        self._refresh_frame()
+        self._frame_dirty = True
 
     def _refresh_frame(self):
         frame = self._last_frame
@@ -213,19 +225,41 @@ class InfoPanel(QWidget):
             return f"{value / 1024:.1f} КБ"
         return f"{value:.0f} Б"
 
-    def append_raw(self, line: str):
-        if not line:
-            return
-        self.raw_terminal.appendPlainText(line)
+    def append_raw(self, line: str | list | tuple):
+        if isinstance(line, (list, tuple)):
+            lines = line
+        else:
+            lines = (line,)
+        for item in lines:
+            if item:
+                self._raw_pending.append(item)
+        overflow = len(self._raw_pending) - UI.raw_history_lines
+        if overflow > 0:
+            del self._raw_pending[:overflow]
+
+    def _flush_ui(self):
+        if self._frame_dirty:
+            self._frame_dirty = False
+            self._refresh_frame()
+        if self._raw_pending:
+            text = "\n".join(self._raw_pending)
+            self._raw_pending.clear()
+            self.raw_terminal.appendPlainText(text)
 
     def update_stats(self, stats: dict):
+        ingest_ms = float(stats.get("ingest_ms", 0.0))
+        payload_ms = float(stats.get("payload_ms", 0.0))
+        ingest_batch = int(stats.get("ingest_batch", 0))
+        trail_len = int(stats.get("trail_len", stats.get("points", 0)))
         self.stats_label.setText(
             f"Людей: {stats.get('people_count', 0)}\n"
             f"Зона занята: {stats.get('dwell_s', 0):.0f} с\n"
             f"Точек в трейле: {stats['points']}\n"
             f"Макс. Y: {stats['max_y']:.0f} мм\n"
             f"Пройдено ≈ {stats['distance_m']:.2f} м\n"
-            f"Heat sum: {stats['heat_sum']:.1f}"
+            f"Heat sum: {stats['heat_sum']:.1f}\n"
+            f"ingest: {ingest_ms:.2f} мс  payload: {payload_ms:.2f} мс\n"
+            f"кадров/payload: {ingest_batch}  буфер трейла: {trail_len}"
         )
 
     def _format_target(self, index: int, target: Target) -> str:

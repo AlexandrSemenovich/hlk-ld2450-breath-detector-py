@@ -74,54 +74,45 @@ class HeatmapView(TimedMplWidget):
             self.current_points.append(current_point)
             self.target_labels.append(text)
 
-        self.ax.scatter([0], [0], marker="^", c="#1f2933", s=70, zorder=7)
+        self.origin_marker = self.ax.scatter([0], [0], marker="^", c="#1f2933", s=70, zorder=7)
 
     def _sync_figure_size(self):
-        width = self.canvas.width()
-        height = self.canvas.height()
-        if width <= 0 or height <= 0:
+        self._invalidate_blit()
+        if not self._fill_axes(inset=0.02):
             return
 
-        self.figure.set_size_inches(width / self.figure.dpi, height / self.figure.dpi)
-        self.figure.subplots_adjust(left=0.0, right=1.0, top=1.0, bottom=0.0)
-
+        width = self.canvas.width()
+        height = self.canvas.height()
         inset = 0.02
-        axes_w = 1.0 - 2 * inset
-        axes_h = 1.0 - 2 * inset
-        self.ax.set_position([inset, inset, axes_w, axes_h])
-
-        pixel_w = width * axes_w
-        pixel_h = height * axes_h
+        pixel_w = width * (1.0 - 2 * inset)
+        pixel_h = height * (1.0 - 2 * inset)
         if pixel_w <= 0 or pixel_h <= 0:
             return
 
-        span_x = 2.0 * self._x_half
-        span_y = max(self.max_range, span_x * (pixel_h / pixel_w))
+        world_x = 2.0 * self._x_half
+        world_y = float(self.max_range)
+        pixel_aspect = pixel_w / pixel_h
+        world_aspect = world_x / world_y
+        if pixel_aspect > world_aspect:
+            span_x = world_y * pixel_aspect
+            span_y = world_y
+            x_min = -span_x / 2.0
+            y_min = 0.0
+        else:
+            span_x = world_x
+            span_y = world_x / pixel_aspect
+            extra_y = span_y - world_y
+            x_min = -span_x / 2.0
+            y_min = -extra_y * 0.12
 
-        extra_y = max(0.0, span_y - self.max_range)
-        y_min = -extra_y * 0.12
-        self.ax.set_xlim(-span_x / 2.0, span_x / 2.0)
+        self.ax.set_xlim(x_min, x_min + span_x)
         self.ax.set_ylim(y_min, y_min + span_y)
         self.ax.set_aspect("equal", adjustable="box")
         self.ax.xaxis.set_major_locator(MultipleLocator(2000))
         self._apply_inner_ticks()
-        self.canvas.draw_idle()
-
-    def _apply_inner_ticks(self):
-        self.ax.tick_params(
-            which="both",
-            direction="in",
-            top=True,
-            right=True,
-            labelsize=8,
-            length=5,
-            width=0.8,
-            pad=-14,
-        )
-        for label in self.ax.get_xticklabels():
-            label.set_verticalalignment("bottom")
-        for label in self.ax.get_yticklabels():
-            label.set_horizontalalignment("left")
+        self._dirty = True
+        if self.isVisible():
+            self.canvas.draw_idle()
 
     def _draw_static_scene(self):
         fov = VISUALIZATION.fov_deg
@@ -228,7 +219,10 @@ class HeatmapView(TimedMplWidget):
             else:
                 arrow.set_visible(False)
 
-        self.canvas.draw_idle()
+        self._draw_dynamic()
+
+    def _blit_artists(self):
+        return (self.heat_img, *self.vector_arrows, *self.current_points, *self.target_labels, self.origin_marker)
 
     def clear(self):
         self._latest = None
@@ -241,4 +235,7 @@ class HeatmapView(TimedMplWidget):
             arrow.set_visible(False)
             point.set_offsets(empty)
             label.set_visible(False)
-        self.canvas.draw_idle()
+        self._invalidate_blit()
+        self._dirty = True
+        if self.isVisible():
+            self.canvas.draw_idle()

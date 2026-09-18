@@ -2,7 +2,7 @@ import time
 
 from PySide6.QtCore import QObject, QTimer, Signal
 
-from core.config import SERIAL
+from core.config import SERIAL, VISUALIZATION
 
 
 class ConnectionViewModel(QObject):
@@ -23,9 +23,13 @@ class ConnectionViewModel(QObject):
         self.words_received = 0
         self._reset_channel_stats()
 
+        self._words_dirty = False
         self._stats_timer = QTimer(self)
         self._stats_timer.setInterval(SERIAL.stats_interval_ms)
         self._stats_timer.timeout.connect(self._emit_channel_stats)
+        self._ui_timer = QTimer(self)
+        self._ui_timer.setInterval(VISUALIZATION.render_interval_ms)
+        self._ui_timer.timeout.connect(self._flush_words)
 
         worker.connectionChanged.connect(self._on_connection)
         worker.connectionInfoChanged.connect(self._on_connection_info)
@@ -49,29 +53,47 @@ class ConnectionViewModel(QObject):
         self.connected = ok
         if ok:
             self.words_received = 0
-            self.wordsChanged.emit(self.words_received)
+            self._words_dirty = True
             self._reset_channel_stats()
             self._stats_timer.start()
+            self._ui_timer.start()
+            self._flush_words()
             self._emit_channel_stats()
         else:
             self._stats_timer.stop()
+            self._ui_timer.stop()
+            self._flush_words()
             self._emit_channel_stats()
         self.statusChanged.emit(ok, message)
 
     def _on_connection_info(self, info):
         self.infoChanged.emit(self._format_info(info))
 
-    def _on_raw(self, line: str):
-        self.words_received += self._count_words(line)
+    def _on_raw(self, lines):
+        if isinstance(lines, str):
+            lines = (lines,)
+        for line in lines:
+            if not line:
+                continue
+            self.words_received += self._count_words(line)
+            self.bytes_total += len(line) + 1
+        self._words_dirty = True
+
+    def _flush_words(self):
+        if not self._words_dirty:
+            return
+        self._words_dirty = False
         self.wordsChanged.emit(self.words_received)
-        self.bytes_total += len(line.encode("ascii", errors="ignore")) + 1
 
-    def _on_frame(self, frame):
-        self.packets_ok += 1
-        self._count_missed(frame)
+    def _on_frame(self, frames):
+        if not isinstance(frames, (list, tuple)):
+            frames = (frames,)
+        self.packets_ok += len(frames)
+        for frame in frames:
+            self._count_missed(frame)
 
-    def _on_invalid(self):
-        self.packets_bad += 1
+    def _on_invalid(self, count=1):
+        self.packets_bad += max(1, int(count))
 
     def _count_missed(self, frame):
         try:

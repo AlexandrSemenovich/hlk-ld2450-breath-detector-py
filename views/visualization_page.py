@@ -44,6 +44,19 @@ class VisualizationPage(QWidget):
         self.range_profile_view.start()
         self.presence_view.start()
 
+    def stop(self):
+        self.heatmap_view.stop()
+        self.range_profile_view.stop()
+        self.presence_view.stop()
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        self.start()
+
+    def hideEvent(self, event):
+        self.stop()
+        super().hideEvent(event)
+
     def clear(self):
         self.heatmap_view.clear()
         self.range_profile_view.clear()

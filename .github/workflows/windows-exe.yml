@@ -1,0 +1,27 @@
+name: Windows EXE
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt -r requirements-build.txt
+      - name: Build
+        run: python -m PyInstaller --noconfirm --clean packaging/ld2450.spec
+      - name: Upload folder
+        uses: actions/upload-artifact@v4
+        with:
+          name: LD2450-Monitor-windows
+          path: dist/LD2450-Monitor

@@ -31,8 +31,6 @@ def main():
     window = MainWindow(connection_vm, settings_vm, heatmap_vm)
     window.show()
 
-    window.visualization_page.start()
-
     info_panel = window.info_panel
 
     worker.frameReady.connect(heatmap_vm.ingest)

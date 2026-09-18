@@ -55,3 +55,17 @@ ConnectionVM (статус)          HeatmapVM.ingest(frame)              InfoPa
 ```
 .venv\Scripts\python.exe main.py
 ```
+
+## Сборка Windows EXE
+
+Сборку нужно выполнять **на Windows** (Python 3.11+). Из Linux готовый `.exe` не получается: Qt/matplotlib тянут нативные DLL.
+
+```
+build_windows.bat
+```
+
+Результат: `dist\LD2450-Monitor\LD2450-Monitor.exe`. На другой ПК копируйте **всю папку** `LD2450-Monitor`, не один exe.
+
+Зависимости сборки: `requirements-build.txt` (PyInstaller). Спека: `packaging/ld2450.spec`.
+
+Без Windows-ПК можно собрать через GitHub Actions (workflow **Windows EXE**, запуск вручную) и скачать артефакт `LD2450-Monitor-windows`.

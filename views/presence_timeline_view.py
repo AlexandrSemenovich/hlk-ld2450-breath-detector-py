@@ -12,13 +12,14 @@ class PresenceTimelineView(TimedMplWidget):
 
         self.ax = self.figure.add_subplot(111)
         self.ax.set_facecolor(VISUALIZATION.background_color)
-        self.ax.set_title("Присутствие", pad=8)
+        self.ax.set_title("")
         self.ax.set_xlabel("Время, с")
         self.ax.set_xlim(-window_s, 0)
         self.ax.set_ylim(-0.5, 2.5)
         self.ax.set_yticks([0, 1, 2])
         self.ax.set_yticklabels(list(VISUALIZATION.target_labels))
         self.ax.grid(True, axis="x", alpha=VISUALIZATION.grid_alpha)
+        self._apply_inner_ticks()
 
         empty = np.zeros((3, bins, 4), dtype=np.float32)
         self.image = self.ax.imshow(
@@ -40,6 +41,20 @@ class PresenceTimelineView(TimedMplWidget):
         value = color.lstrip("#")
         return [int(value[i:i + 2], 16) / 255.0 for i in (0, 2, 4)]
 
+    def _apply_inner_ticks(self):
+        super()._apply_inner_ticks()
+        self.ax.xaxis.label.set_horizontalalignment("right")
+        self.ax.xaxis.set_label_coords(0.99, 0.06)
+
+    def _sync_figure_size(self):
+        self._invalidate_blit()
+        if not self._fill_axes(inset=0.02):
+            return
+        self._apply_inner_ticks()
+        self._dirty = True
+        if self.isVisible():
+            self.canvas.draw_idle()
+
     def _render(self):
         if self._latest is None:
             return
@@ -60,7 +75,10 @@ class PresenceTimelineView(TimedMplWidget):
             y = index - 0.35 + 0.7 * speed_norm[index]
             y = np.where(presence[index] > 0.5, y, np.nan)
             line.set_data(times, y)
-        self.canvas.draw_idle()
+        self._draw_dynamic()
+
+    def _blit_artists(self):
+        return (self.image, *self.speed_lines)
 
     def clear(self):
         self._latest = None
@@ -68,4 +86,7 @@ class PresenceTimelineView(TimedMplWidget):
         self.image.set_data(np.zeros((3, bins, 4), dtype=np.float32))
         for line in self.speed_lines:
             line.set_data([], [])
-        self.canvas.draw_idle()
+        self._invalidate_blit()
+        self._dirty = True
+        if self.isVisible():
+            self.canvas.draw_idle()

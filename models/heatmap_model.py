@@ -17,8 +17,13 @@ class HeatmapModel:
         self._occupied_since_ms = None
 
         self.trails = [deque(), deque(), deque()]
-        self.presence_log = deque()
         self.history_max = config.history_max
+        bins = VISUALIZATION.presence_bins
+        self.presence = np.zeros((3, bins), dtype=np.float32)
+        self.speed_series = np.full((3, bins), np.nan, dtype=np.float32)
+        self._presence_now_ts = None
+        self._currents = [self._empty_current() for _ in range(3)]
+        self._ingest_count = 0
 
         self.kernel_r = config.kernel_radius
         self.kernel = self._make_gaussian_kernel(2 * config.kernel_radius + 1, config.kernel_sigma)
@@ -125,8 +130,6 @@ class HeatmapModel:
             self._add_kernel_to_heat(iy, ix, add_value)
             self._add_kernel_to_range(iy, add_value)
             self.trails[index].append((x, y, ts, speed))
-            while len(self.trails[index]) > self.history_max:
-                self.trails[index].popleft()
             currents.append({
                 "x": x,
                 "y": y,
@@ -137,11 +140,12 @@ class HeatmapModel:
             speeds.append(speed)
 
         now_ts = self.last_ts_ms if self.last_ts_ms is not None else 0
-        self._update_presence_log(now_ts, presents, speeds)
+        self._trim_trails(now_ts)
+        self._update_presence_ring(now_ts, presents, speeds)
         occupancy = self._compute_occupancy(now_ts, presents)
+        self._currents = currents
         self._last_occupancy = occupancy
-
-        return self._payload(currents, occupancy, ts, now_ts)
+        self._ingest_count += 1
 
     def _map_x(self, x: float) -> float:
         return -x if self.mirror_x else x
@@ -156,36 +160,15 @@ class HeatmapModel:
             self.trails[index] = deque(
                 (-x, y, ts, speed) for (x, y, ts, speed) in trail
             )
+        for current in self._currents:
+            if current.get("present"):
+                current["x"] = -current["x"]
         return True
 
     def payload_from_state(self):
-        ts = self.last_ts_ms
-        currents = []
-        for trail in self.trails:
-            if not trail:
-                currents.append(self._empty_current())
-                continue
-            x, y, _ts, speed = trail[-1]
-            currents.append({
-                "x": x,
-                "y": y,
-                "speed": speed,
-                "present": True,
-            })
-        now_ts = ts if ts is not None else 0
-        return self._payload(currents, self._last_occupancy, ts, now_ts)
-
-    def _payload(self, currents, occupancy, ts, now_ts):
-        trails = []
-        scene_trails = []
-        trails_points = []
-        for trail in self.trails:
-            points = self._prune_trail(list(trail), ts, self.trail_time_ms)
-            scene_points = self._prune_trail(list(trail), ts, VISUALIZATION.scene_trail_ms)
-            trails.append(self._trail_payload(points))
-            scene_trails.append(self._trail_payload(scene_points))
-            trails_points.append(points)
-
+        ingest_batch = self._ingest_count
+        self._ingest_count = 0
+        occupancy = self._last_occupancy
         vmax_now = float(np.max(self.heat))
         if vmax_now < 1e-6:
             vmax_now = 1.0
@@ -196,19 +179,18 @@ class HeatmapModel:
         if range_vmax < 1e-6:
             range_vmax = 1.0
 
-        presence, speed_series = self._presence_arrays(now_ts)
-        stats = self._compute_stats(trails_points, occupancy)
+        stats = self._compute_stats(occupancy)
+        stats["ingest_batch"] = ingest_batch
+        stats["trail_len"] = sum(len(trail) for trail in self.trails)
 
         return {
             "heat": self.heat,
             "vmax": vmax,
-            "trails": trails,
-            "scene_trails": scene_trails,
-            "currents": currents,
+            "currents": self._currents,
             "range_profile": self.range_profile,
             "range_vmax": range_vmax,
-            "presence": presence,
-            "speed_series": speed_series,
+            "presence": self.presence,
+            "speed_series": self.speed_series,
             "presence_window_s": VISUALIZATION.presence_window_ms / 1000.0,
             "occupancy": occupancy,
             "stats": stats,
@@ -222,17 +204,59 @@ class HeatmapModel:
             "present": False,
         }
 
-    def _trail_payload(self, points):
-        return {
-            "xs": [p[0] for p in points],
-            "ys": [p[1] for p in points],
-        }
+    def _trail_count_limit(self) -> int:
+        return max(1, min(int(self.trail_points_max), int(self.history_max)))
 
-    def _update_presence_log(self, ts, presents, speeds):
-        self.presence_log.append((ts, tuple(presents), tuple(speeds)))
-        cutoff = ts - int(VISUALIZATION.presence_window_ms)
-        while self.presence_log and self.presence_log[0][0] < cutoff:
-            self.presence_log.popleft()
+    def _trail_window_ms(self) -> int:
+        return max(int(self.trail_time_ms), int(VISUALIZATION.scene_trail_ms))
+
+    def _trim_trails(self, ts):
+        limit = self._trail_count_limit()
+        cutoff = None
+        if ts is not None and ts > 0:
+            cutoff = ts - self._trail_window_ms()
+        for trail in self.trails:
+            if cutoff is not None:
+                while trail:
+                    item_ts = trail[0][2]
+                    if item_ts is None or item_ts <= 0 or item_ts >= cutoff:
+                        break
+                    trail.popleft()
+            while len(trail) > limit:
+                trail.popleft()
+
+    def _update_presence_ring(self, ts, presents, speeds):
+        if ts is None or ts <= 0:
+            return
+
+        bins = VISUALIZATION.presence_bins
+        window_ms = int(VISUALIZATION.presence_window_ms)
+        now_ts = self._presence_now_ts
+        if now_ts is None or now_ts <= 0:
+            self._presence_now_ts = ts
+        else:
+            dt = ts - now_ts
+            if dt < 0:
+                self.presence.fill(0.0)
+                self.speed_series.fill(np.nan)
+                self._presence_now_ts = ts
+            elif dt > 0:
+                shift = int(dt / window_ms * (bins - 1) + 0.5)
+                if shift >= bins:
+                    self.presence.fill(0.0)
+                    self.speed_series.fill(np.nan)
+                    self._presence_now_ts = ts
+                elif shift > 0:
+                    self.presence[:, :-shift] = self.presence[:, shift:]
+                    self.presence[:, -shift:] = 0.0
+                    self.speed_series[:, :-shift] = self.speed_series[:, shift:]
+                    self.speed_series[:, -shift:] = np.nan
+                    self._presence_now_ts = ts
+
+        for index, present in enumerate(presents):
+            if present:
+                self.presence[index, -1] = 1.0
+                self.speed_series[index, -1] = abs(float(speeds[index]))
 
     def _compute_occupancy(self, ts, presents):
         count = int(sum(1 for present in presents if present))
@@ -255,52 +279,29 @@ class HeatmapModel:
             "dwell_s": dwell_s,
         }
 
-    def _presence_arrays(self, now_ts):
-        bins = VISUALIZATION.presence_bins
-        window_ms = int(VISUALIZATION.presence_window_ms)
-        presence = np.zeros((3, bins), dtype=np.float32)
-        speeds = np.full((3, bins), np.nan, dtype=np.float32)
-        if now_ts <= 0 or not self.presence_log:
-            return presence, speeds
-
-        t0 = now_ts - window_ms
-        for ts, presents, target_speeds in self.presence_log:
-            if ts < t0:
-                continue
-            col = int((ts - t0) / window_ms * (bins - 1) + 0.5)
-            col = max(0, min(bins - 1, col))
-            for index, present in enumerate(presents):
-                if present:
-                    presence[index, col] = 1.0
-                    speeds[index, col] = abs(float(target_speeds[index]))
-        return presence, speeds
-
-    def _prune_trail(self, points, ts, window_ms):
-        limit = int(self.trail_points_max)
-        if ts is not None and ts > 0:
-            cutoff = ts - int(window_ms)
-            pruned = [
-                item for item in points
-                if item[2] is not None and item[2] > 0 and item[2] >= cutoff
-            ]
-            if not pruned:
-                pruned = points[-limit:]
-            return pruned
-        return points[-limit:]
-
-    def _compute_stats(self, trails_points, occupancy):
+    def _compute_stats(self, occupancy):
         heat_sum = float(np.sum(self.heat))
-        n = sum(len(points) for points in trails_points)
+        n = 0
         max_y = 0.0
         dist_mm = 0.0
-        for points in trails_points:
-            if not points:
-                continue
-            ys = np.array([p[1] for p in points], dtype=np.float64)
-            max_y = max(max_y, float(np.max(ys)))
-            if len(points) >= 2:
-                xs = np.array([p[0] for p in points], dtype=np.float64)
-                dist_mm += float(np.sqrt(np.diff(xs) ** 2 + np.diff(ys) ** 2).sum())
+        cutoff = None
+        ts = self.last_ts_ms
+        if ts is not None and ts > 0:
+            cutoff = ts - int(self.trail_time_ms)
+        for trail in self.trails:
+            prev_x = None
+            prev_y = None
+            for x, y, item_ts, _speed in trail:
+                if cutoff is not None and item_ts is not None and item_ts > 0 and item_ts < cutoff:
+                    continue
+                n += 1
+                if y > max_y:
+                    max_y = float(y)
+                if prev_x is not None:
+                    dx = x - prev_x
+                    dy = y - prev_y
+                    dist_mm += (dx * dx + dy * dy) ** 0.5
+                prev_x, prev_y = x, y
 
         return {
             "points": n,
@@ -312,30 +313,33 @@ class HeatmapModel:
         }
 
     def snapshot(self):
-        empty_current = [self._empty_current() for _ in range(3)]
-        empty_trail = {"xs": [], "ys": []}
         occupancy = {"count": 0, "occupied": False, "dwell_s": 0.0}
+        stats = self._compute_stats(occupancy)
+        stats["ingest_batch"] = 0
+        stats["trail_len"] = 0
         return {
             "heat": self.heat,
             "vmax": 1.0,
-            "trails": [empty_trail] * 3,
-            "scene_trails": [empty_trail] * 3,
-            "currents": empty_current,
+            "currents": self._currents,
             "range_profile": self.range_profile,
             "range_vmax": 1.0,
-            "presence": np.zeros((3, VISUALIZATION.presence_bins), dtype=np.float32),
-            "speed_series": np.full((3, VISUALIZATION.presence_bins), np.nan, dtype=np.float32),
+            "presence": self.presence,
+            "speed_series": self.speed_series,
             "presence_window_s": VISUALIZATION.presence_window_ms / 1000.0,
             "occupancy": occupancy,
-            "stats": self._compute_stats([], occupancy),
+            "stats": stats,
         }
 
     def clear(self):
         self.heat[:] = 0.0
         self.range_profile[:] = 0.0
+        self.presence.fill(0.0)
+        self.speed_series.fill(np.nan)
         self.last_ts_ms = None
         self._occupied_since_ms = None
-        self.presence_log.clear()
+        self._presence_now_ts = None
+        self._ingest_count = 0
+        self._currents = [self._empty_current() for _ in range(3)]
         self._last_occupancy = {"count": 0, "occupied": False, "dwell_s": 0.0}
         for trail in self.trails:
             trail.clear()
