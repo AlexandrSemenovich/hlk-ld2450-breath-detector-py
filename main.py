@@ -31,7 +31,7 @@ def main():
     window = MainWindow(connection_vm, settings_vm, heatmap_vm)
     window.show()
 
-    window.heatmap_view.start()
+    window.visualization_page.start()
 
     info_panel = window.info_panel
 
@@ -41,7 +41,7 @@ def main():
     heatmap_vm.updated.connect(lambda payload: info_panel.update_stats(payload["stats"]))
 
     window.clear_btn.clicked.connect(heatmap_vm.clear)
-    window.clear_btn.clicked.connect(window.heatmap_view.clear)
+    window.clear_btn.clicked.connect(window.visualization_page.clear)
 
     def _shutdown():
         connection_vm.request_finish()

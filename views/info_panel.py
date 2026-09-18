@@ -87,6 +87,8 @@ class InfoPanel(QWidget):
 
     def update_stats(self, stats: dict):
         self.stats_label.setText(
+            f"Людей: {stats.get('people_count', 0)}\n"
+            f"Зона занята: {stats.get('dwell_s', 0):.0f} с\n"
             f"Точек в трейле: {stats['points']}\n"
             f"Макс. Y: {stats['max_y']:.0f} мм\n"
             f"Пройдено ≈ {stats['distance_m']:.2f} м\n"

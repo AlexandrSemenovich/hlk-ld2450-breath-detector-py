@@ -28,7 +28,7 @@ class VisualizationConfig:
     grid_alpha: float = 0.25
     axis_x_label: str = "X (mm)"
     axis_y_label: str = "Y (mm)"
-    title: str = "Heatmap (fading trails) — Target 0–2"
+    title: str = "Сцена — присутствие людей"
     colormap: tuple = (
         "#ffffff", "#dbeafe", "#93c5fd", "#60a5fa",
         "#34d399", "#fde047", "#fb923c", "#ef4444",
@@ -42,6 +42,15 @@ class VisualizationConfig:
     point_edge_width: float = 1.2
     target_colors: tuple = ("#d32f2f", "#1565c0", "#2e7d32")
     target_labels: tuple = ("Target 0", "Target 1", "Target 2")
+    heat_alpha: float = 0.38
+    fov_deg: float = 60.0
+    ring_step_mm: int = 1000
+    scene_trail_ms: int = 2000
+    moving_speed_cm_s: int = 20
+    vector_scale: float = 12.0
+    label_offset_mm: int = 180
+    presence_window_ms: int = 45000
+    presence_bins: int = 180
 
 
 @dataclass(frozen=True)
@@ -83,6 +92,10 @@ class Theme:
     raw_text: str = "#36e07a"
     status_on: str = "#2e7d32"
     status_off: str = "#c62828"
+    occupancy_on_bg: str = "#e8f5e9"
+    occupancy_off_bg: str = "#ffebee"
+    occupancy_on: str = "#2e7d32"
+    occupancy_off: str = "#c62828"
 
 
 @dataclass(frozen=True)
@@ -203,14 +216,13 @@ def build_stylesheet(theme: Theme = None, typo: Typography = None) -> str:
         border-radius: {UI.status_led_size // 2}px;
         background-color: {theme.status_off};
     }}
-    QFrame#PlotPlaceholder {{
-        background-color: {theme.bg_panel};
-        border: 2px dashed {theme.border};
+    QFrame#OccupancyStatus {{
+        background-color: {theme.occupancy_off_bg};
+        border: 2px solid {theme.occupancy_off};
         border-radius: 10px;
     }}
-    QFrame#PlotPlaceholder QLabel {{
-        color: {theme.text_secondary};
-        font-size: {typo.font_size + 1}pt;
+    QFrame#OccupancyStatus QLabel {{
+        background: transparent;
     }}
     QPlainTextEdit#RawTerminal {{
         background-color: {theme.raw_bg};
