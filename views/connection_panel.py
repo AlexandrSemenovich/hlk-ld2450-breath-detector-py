@@ -1,7 +1,7 @@
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QGroupBox, QFormLayout,
-                               QComboBox, QSpinBox, QPushButton, QLabel)
+                               QComboBox, QSpinBox, QPushButton)
 
-from core.config import SERIAL, RANGES, STYLES
+from core.config import SERIAL, RANGES
 from viewmodels.connection_vm import ConnectionViewModel
 
 
@@ -36,10 +36,6 @@ class ConnectionPanel(QWidget):
         group.setLayout(form)
         layout.addWidget(group)
 
-        self.status_label = QLabel("Статус: отключено")
-        self.status_label.setStyleSheet(STYLES.status_box)
-        layout.addWidget(self.status_label)
-
         vm.statusChanged.connect(self._on_status)
 
     def _on_clicked(self):
@@ -50,6 +46,5 @@ class ConnectionPanel(QWidget):
         else:
             self.vm.connect()
 
-    def _on_status(self, ok: bool, message: str):
+    def _on_status(self, ok: bool, _message: str):
         self.btn.setText("Отключиться" if ok else "Подключиться")
-        self.status_label.setText(f"Статус: {message}")

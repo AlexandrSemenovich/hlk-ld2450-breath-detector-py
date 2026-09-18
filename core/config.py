@@ -97,6 +97,8 @@ class UIConfig:
     right_panel_stretch: int = 4
     panel_spacing: int = 12
     content_margin: int = 12
+    status_bar_min_height: int = 38
+    status_bar_font_size: int = 11
 
 
 def build_stylesheet(theme: Theme = None, typo: Typography = None) -> str:
@@ -163,6 +165,23 @@ def build_stylesheet(theme: Theme = None, typo: Typography = None) -> str:
         border: 1px solid {theme.accent};
     }}
     QLabel {{ background: transparent; color: {theme.text_primary}; }}
+    QStatusBar {{
+        background-color: {theme.bg_panel};
+        border-top: 1px solid {theme.border};
+        color: {theme.text_secondary};
+        min-height: {UI.status_bar_min_height}px;
+        font-size: {UI.status_bar_font_size}pt;
+        padding: 4px 8px;
+    }}
+    QStatusBar QLabel {{
+        background: transparent;
+        color: {theme.text_secondary};
+        padding: 8px 16px;
+        font-size: {UI.status_bar_font_size}pt;
+    }}
+    QStatusBar::item {{
+        border: none;
+    }}
     """
 
 

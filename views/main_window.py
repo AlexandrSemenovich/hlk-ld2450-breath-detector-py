@@ -1,5 +1,5 @@
 from PySide6.QtWidgets import (QMainWindow, QWidget, QHBoxLayout, QVBoxLayout,
-                               QTabWidget, QPushButton)
+                               QTabWidget, QPushButton, QLabel, QFrame)
 
 from core.config import UI
 from viewmodels.connection_vm import ConnectionViewModel
@@ -51,5 +51,43 @@ class MainWindow(QMainWindow):
         self.tabs.addTab(self.heatmap_view, "Heatmap")
         main_layout.addWidget(self.tabs, stretch=UI.right_panel_stretch)
 
+        self._init_status_bar(connection_vm)
+
     def add_tab(self, widget: QWidget, title: str):
         self.tabs.addTab(widget, title)
+
+    def _init_status_bar(self, connection_vm: ConnectionViewModel):
+        bar = self.statusBar()
+        bar.setSizeGripEnabled(True)
+        bar.setMinimumHeight(UI.status_bar_min_height)
+
+        self.connection_status_label = QLabel("Статус: отключено")
+        self.connection_info_label = QLabel(
+            "Порт: —    Скорость: —    Формат: —    Timeout: —"
+        )
+        self.words_label = QLabel("Слов: 0")
+
+        bar.addWidget(self.connection_status_label)
+        bar.addWidget(self._status_separator())
+        bar.addWidget(self.connection_info_label, 1)
+        bar.addPermanentWidget(self._status_separator())
+        bar.addPermanentWidget(self.words_label)
+
+        connection_vm.statusChanged.connect(self._on_connection_status)
+        connection_vm.infoChanged.connect(self._on_connection_info)
+        connection_vm.wordsChanged.connect(self._on_words_changed)
+
+    def _status_separator(self):
+        line = QFrame()
+        line.setFrameShape(QFrame.Shape.VLine)
+        line.setFrameShadow(QFrame.Shadow.Sunken)
+        return line
+
+    def _on_connection_status(self, _ok: bool, message: str):
+        self.connection_status_label.setText(f"Статус: {message}")
+
+    def _on_connection_info(self, text: str):
+        self.connection_info_label.setText(text)
+
+    def _on_words_changed(self, count: int):
+        self.words_label.setText(f"Слов: {count}")

@@ -10,6 +10,7 @@ class SerialWorker(QObject):
     frameReady = Signal(object)
     rawReady = Signal(str)
     connectionChanged = Signal(bool, str)
+    connectionInfoChanged = Signal(object)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -24,8 +25,10 @@ class SerialWorker(QObject):
             self._running = True
             self._timer.start(SERIAL.poll_interval_ms)
             self.connectionChanged.emit(True, "Подключено")
+            self.connectionInfoChanged.emit(self._serial_info())
         except Exception as exc:
             self.connectionChanged.emit(False, f"Ошибка подключения: {exc}")
+            self.connectionInfoChanged.emit(None)
 
     def disconnect(self):
         self._running = False
@@ -36,6 +39,18 @@ class SerialWorker(QObject):
             except Exception:
                 pass
         self.connectionChanged.emit(False, "Отключено")
+        self.connectionInfoChanged.emit(None)
+
+    def _serial_info(self):
+        ser = self._serial
+        return {
+            "port": ser.port,
+            "baud": ser.baudrate,
+            "bytesize": int(ser.bytesize),
+            "parity": str(ser.parity),
+            "stopbits": float(ser.stopbits),
+            "timeout_s": ser.timeout,
+        }
 
     def finish(self):
         self._running = False
