@@ -31,6 +31,7 @@ class ConnectionPage(QWidget):
 
         layout.addWidget(self.connection_panel)
         layout.addWidget(self.settings_panel)
+        layout.addWidget(self.info_panel.stats_group)
         layout.addStretch()
         layout.addWidget(self.clear_btn)
 

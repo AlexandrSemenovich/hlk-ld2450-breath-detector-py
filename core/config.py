@@ -8,6 +8,11 @@ class SerialConfig:
     available_ports: tuple = ("COM3", "COM4", "COM5", "COM6", "/dev/ttyUSB0")
     read_timeout_s: float = 0.01
     poll_interval_ms: int = 5
+    stats_interval_ms: int = 250
+    data_format: str = (
+        "R x0,y0,v0,r0, x1,y1,v1,r1, x2,y2,v2,r2, ts_ms, frame_id  "
+        "(ASCII CSV, мм / см/с)"
+    )
 
 
 @dataclass(frozen=True)
@@ -55,6 +60,26 @@ class VisualizationConfig:
     label_offset_mm: int = 180
     presence_window_ms: int = 45000
     presence_bins: int = 180
+
+
+@dataclass(frozen=True)
+class ZonesConfig:
+    fill_alpha: float = 0.18
+    edge_width: float = 1.6
+    label_size: int = 8
+    near_range_mm: int = 2000
+    near_name: str = "Zone 0"
+    near_color: str = "#2e7d32"
+    square_x_center_mm: int = -1000
+    square_y_min_mm: int = 3000
+    square_y_max_mm: int = 5000
+    square_name: str = "Zone 2"
+    square_color: str = "#f59e0b"
+    circle_x_center_mm: int = 2000
+    circle_y_min_mm: int = 2000
+    circle_y_max_mm: int = 3000
+    circle_name: str = "Zone 1"
+    circle_color: str = "#6d28d9"
 
 
 @dataclass(frozen=True)
@@ -125,6 +150,7 @@ class UIConfig:
     status_bar_min_height: int = 38
     status_bar_font_size: int = 11
     status_led_size: int = 14
+    status_words_width: int = 168
     raw_history_lines: int = 300
     raw_terminal_min_height: int = 240
     target_font_size: int = 11
@@ -242,12 +268,43 @@ def build_stylesheet(theme: Theme = None, typo: Typography = None) -> str:
         font-family: "{typo.mono_family}";
         font-size: {typo.font_size}pt;
     }}
+    QTableWidget#ChannelTable {{
+        background-color: {theme.bg_panel};
+        alternate-background-color: {theme.bg_app};
+        color: {theme.text_primary};
+        border: 1px solid {theme.border};
+        border-radius: 8px;
+        gridline-color: {theme.border};
+        selection-background-color: transparent;
+        selection-color: {theme.text_primary};
+        outline: none;
+    }}
+    QTableWidget#ChannelTable::item {{
+        padding: 6px 10px;
+        border: none;
+    }}
+    QTableWidget#ChannelTable QHeaderView::section {{
+        background-color: {theme.bg_app};
+        color: {theme.text_secondary};
+        font-weight: 600;
+        border: none;
+        border-bottom: 1px solid {theme.border};
+        padding: 8px 10px;
+    }}
+    QTableWidget#ChannelTable QHeaderView::section:last {{
+        text-align: right;
+    }}
+    QLabel#ChannelFormat {{
+        color: {theme.text_secondary};
+        padding: 8px 4px 0 4px;
+    }}
     """
 
 
 SERIAL = SerialConfig()
 HEATMAP = HeatmapConfig()
 VISUALIZATION = VisualizationConfig()
+ZONES = ZonesConfig()
 SETTINGS_DEFAULTS = SettingsDefaults()
 UI = UIConfig()
 THEME = Theme()

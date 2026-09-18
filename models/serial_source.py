@@ -9,6 +9,7 @@ from core.protocol import parse_raw_line
 class SerialWorker(QObject):
     frameReady = Signal(object)
     rawReady = Signal(str)
+    packetInvalid = Signal()
     connectionChanged = Signal(bool, str)
     connectionInfoChanged = Signal(object)
 
@@ -70,6 +71,7 @@ class SerialWorker(QObject):
         try:
             raw = self._serial.readline().decode("ascii", errors="ignore").strip()
         except Exception:
+            self.packetInvalid.emit()
             return
 
         if not raw:
@@ -79,3 +81,5 @@ class SerialWorker(QObject):
         frame = parse_raw_line(raw)
         if frame is not None:
             self.frameReady.emit(frame)
+        else:
+            self.packetInvalid.emit()

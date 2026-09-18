@@ -1,5 +1,6 @@
 from PySide6.QtCore import QObject, Signal
 
+from core.zones import apply_zones
 from models.heatmap_model import HeatmapModel
 from viewmodels.settings_vm import SettingsViewModel
 
@@ -20,12 +21,14 @@ class HeatmapViewModel(QObject):
         self.model.trail_time_ms = self.settings.trail_time_ms
         self.model.trail_points_max = self.settings.trail_points_max
         if self.model.set_mirror_x(self.settings.mirror_x):
-            self.updated.emit(self.model.payload_from_state())
+            self._emit(self.model.payload_from_state())
 
     def ingest(self, frame):
-        payload = self.model.ingest(frame)
-        self.updated.emit(payload)
+        self._emit(self.model.ingest(frame))
 
     def clear(self):
         self.model.clear()
-        self.updated.emit(self.model.snapshot())
+        self._emit(self.model.snapshot())
+
+    def _emit(self, payload: dict):
+        self.updated.emit(apply_zones(payload))

@@ -1,9 +1,10 @@
 import numpy as np
-from matplotlib.colors import LinearSegmentedColormap
-from matplotlib.patches import Wedge, FancyArrowPatch
+from matplotlib.colors import LinearSegmentedColormap, to_rgba
+from matplotlib.patches import Circle, FancyArrowPatch, Rectangle, Wedge
 from matplotlib.ticker import MultipleLocator
 
-from core.config import HEATMAP, VISUALIZATION
+from core.config import HEATMAP, VISUALIZATION, ZONES
+from core.zones import SCENE_ZONES
 from views.mpl_widget import TimedMplWidget
 
 
@@ -143,6 +144,50 @@ class HeatmapView(TimedMplWidget):
             self.ax.text(
                 220, radius, f"{radius / 1000:.0f} м",
                 color="#5b6770", fontsize=8, va="bottom", zorder=2,
+            )
+
+        self._draw_zones()
+
+    def _draw_zones(self):
+        for zone in SCENE_ZONES:
+            face = to_rgba(zone.color, ZONES.fill_alpha)
+            edge = to_rgba(zone.color, 0.95)
+            if zone.shape == "rect":
+                patch = Rectangle(
+                    (zone.x_min, zone.y_min),
+                    zone.x_max - zone.x_min,
+                    zone.y_max - zone.y_min,
+                    facecolor=face,
+                    edgecolor=edge,
+                    linewidth=ZONES.edge_width,
+                    zorder=3,
+                )
+            elif zone.shape == "sector":
+                patch = Wedge(
+                    (zone.cx, zone.cy),
+                    zone.radius,
+                    90.0 - zone.fov_deg,
+                    90.0 + zone.fov_deg,
+                    facecolor=face,
+                    edgecolor=edge,
+                    linewidth=ZONES.edge_width,
+                    zorder=3,
+                )
+            else:
+                patch = Circle(
+                    (zone.cx, zone.cy),
+                    zone.radius,
+                    facecolor=face,
+                    edgecolor=edge,
+                    linewidth=ZONES.edge_width,
+                    zorder=3,
+                )
+            self.ax.add_patch(patch)
+            label_x, label_y = zone.label_xy
+            self.ax.text(
+                label_x, label_y, zone.name,
+                color=zone.color, fontsize=ZONES.label_size, fontweight="bold",
+                ha="center", va="center", zorder=4,
             )
 
     def _render(self):

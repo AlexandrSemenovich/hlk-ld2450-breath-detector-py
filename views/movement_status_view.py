@@ -87,6 +87,8 @@ class MovementStatusView(QFrame):
             action, detail = self._describe(current)
             row["action_full"] = action
             row["detail_full"] = detail
+            color = current.get("zone_color") if current else None
+            row["action"].setStyleSheet(f"color: {color};" if color else "")
         self._apply_elide()
 
     def _apply_elide(self):
@@ -108,12 +110,18 @@ class MovementStatusView(QFrame):
         distance_m = math.hypot(x, y) / 1000.0
         direction = self._direction(x, y)
         if abs(speed) < VISUALIZATION.moving_speed_cm_s:
-            action = f"на месте, {direction}"
+            movement = f"на месте, {direction}"
         elif speed < 0:
-            action = f"приближается к радару {direction}"
+            movement = f"приближается к радару {direction}"
         else:
-            action = f"удаляется от радара {direction}"
-        detail = f"{distance_m:.1f} м  ·  {speed:+.0f} см/с"
+            movement = f"удаляется от радара {direction}"
+        zone_name = current.get("zone_name")
+        if zone_name:
+            action = zone_name
+            detail = f"{movement}  ·  {distance_m:.1f} м  ·  {speed:+.0f} см/с"
+        else:
+            action = movement
+            detail = f"{distance_m:.1f} м  ·  {speed:+.0f} см/с"
         return action, detail
 
     def _direction(self, x: float, y: float) -> str:

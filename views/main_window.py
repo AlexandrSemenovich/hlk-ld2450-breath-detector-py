@@ -1,8 +1,10 @@
 from PySide6.QtWidgets import (
-    QMainWindow, QWidget, QTabWidget, QLabel, QFrame, QHBoxLayout,
+    QMainWindow, QWidget, QTabWidget, QLabel, QFrame, QHBoxLayout, QSizePolicy,
 )
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QFont
 
-from core.config import UI, THEME
+from core.config import UI, THEME, TYPO
 from viewmodels.connection_vm import ConnectionViewModel
 from viewmodels.settings_vm import SettingsViewModel
 from viewmodels.heatmap_vm import HeatmapViewModel
@@ -59,7 +61,12 @@ class MainWindow(QMainWindow):
         self.connection_info_label = QLabel(
             "Порт: —    Скорость: —    Формат: —    Timeout: —"
         )
-        self.words_label = QLabel("Слов: 0")
+        self.words_label = QLabel("Слов:        0")
+        self.words_label.setFont(QFont(TYPO.mono_family, UI.status_bar_font_size))
+        self.words_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        self.words_label.setMinimumWidth(UI.status_words_width)
+        self.words_label.setMaximumWidth(UI.status_words_width)
+        self.words_label.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Preferred)
 
         bar.addWidget(status_wrap)
         bar.addWidget(self._status_separator())
@@ -93,4 +100,4 @@ class MainWindow(QMainWindow):
         self.connection_info_label.setText(text)
 
     def _on_words_changed(self, count: int):
-        self.words_label.setText(f"Слов: {count}")
+        self.words_label.setText(f"Слов: {count:8d}")
