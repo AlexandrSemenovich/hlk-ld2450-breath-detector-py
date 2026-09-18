@@ -12,6 +12,7 @@ class SettingsViewModel(QObject):
         self.point_intensity = SETTINGS_DEFAULTS.point_intensity
         self.trail_time_ms = SETTINGS_DEFAULTS.trail_time_ms
         self.trail_points_max = SETTINGS_DEFAULTS.trail_points_max
+        self.mirror_x = SETTINGS_DEFAULTS.mirror_x
 
     def set_fade_time_ms(self, value: int):
         if self.fade_time_ms != value:
@@ -31,4 +32,10 @@ class SettingsViewModel(QObject):
     def set_trail_points_max(self, value: int):
         if self.trail_points_max != value:
             self.trail_points_max = value
+            self.changed.emit()
+
+    def set_mirror_x(self, value: bool):
+        enabled = bool(value)
+        if self.mirror_x != enabled:
+            self.mirror_x = enabled
             self.changed.emit()

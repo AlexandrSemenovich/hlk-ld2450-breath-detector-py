@@ -48,6 +48,9 @@ class VisualizationConfig:
     scene_trail_ms: int = 2000
     moving_speed_cm_s: int = 20
     vector_scale: float = 12.0
+    vector_linewidth: float = 0.9
+    vector_linestyle: tuple = (0, (4, 3))
+    vector_head_size: int = 14
     label_offset_mm: int = 180
     presence_window_ms: int = 45000
     presence_bins: int = 180
@@ -59,6 +62,7 @@ class SettingsDefaults:
     point_intensity: int = 80
     trail_time_ms: int = 2500
     trail_points_max: int = 1200
+    mirror_x: bool = False
 
 
 @dataclass(frozen=True)

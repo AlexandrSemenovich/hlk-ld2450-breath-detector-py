@@ -1,6 +1,6 @@
 import numpy as np
 from matplotlib.colors import LinearSegmentedColormap
-from matplotlib.patches import Wedge
+from matplotlib.patches import Wedge, FancyArrowPatch
 
 from core.config import HEATMAP, VISUALIZATION
 from views.mpl_widget import TimedMplWidget
@@ -40,16 +40,23 @@ class HeatmapView(TimedMplWidget):
             zorder=0,
         )
 
-        self.trail_lines = []
-        self.vector_lines = []
+        self.vector_arrows = []
         self.current_points = []
         self.target_labels = []
         for color, label in zip(VISUALIZATION.target_colors, VISUALIZATION.target_labels):
-            trail_line, = self.ax.plot(
-                [], [], color=color, lw=VISUALIZATION.trail_linewidth,
-                alpha=VISUALIZATION.trail_alpha, zorder=4,
+            arrow = FancyArrowPatch(
+                (0, 0), (0, 0),
+                arrowstyle="-|>",
+                mutation_scale=VISUALIZATION.vector_head_size,
+                linewidth=VISUALIZATION.vector_linewidth,
+                linestyle=VISUALIZATION.vector_linestyle,
+                color=color,
+                shrinkA=0,
+                shrinkB=0,
+                zorder=5,
             )
-            vector_line, = self.ax.plot([], [], color=color, lw=2.2, zorder=5)
+            arrow.set_visible(False)
+            self.ax.add_patch(arrow)
             current_point = self.ax.scatter(
                 [], [], c=color, s=VISUALIZATION.point_size,
                 edgecolors=VISUALIZATION.point_edge_color,
@@ -60,8 +67,7 @@ class HeatmapView(TimedMplWidget):
                 color=color, fontsize=9, fontweight="bold",
                 ha="left", va="bottom", zorder=8, visible=False,
             )
-            self.trail_lines.append(trail_line)
-            self.vector_lines.append(vector_line)
+            self.vector_arrows.append(arrow)
             self.current_points.append(current_point)
             self.target_labels.append(text)
 
@@ -147,20 +153,16 @@ class HeatmapView(TimedMplWidget):
         self.heat_img.set_data(payload["heat"])
         self.heat_img.set_clim(0.0, payload["vmax"])
 
-        trails = payload.get("scene_trails", payload["trails"])
-        for trail_line, trail in zip(self.trail_lines, trails):
-            trail_line.set_data(trail["xs"], trail["ys"])
-
         offset = VISUALIZATION.label_offset_mm
         empty = np.array([[np.nan, np.nan]], dtype=np.float64)
         for index, current in enumerate(payload["currents"]):
             point = self.current_points[index]
             label = self.target_labels[index]
-            vector = self.vector_lines[index]
+            arrow = self.vector_arrows[index]
             if not current.get("present"):
                 point.set_offsets(empty)
                 label.set_visible(False)
-                vector.set_data([], [])
+                arrow.set_visible(False)
                 continue
 
             x, y = current["x"], current["y"]
@@ -174,9 +176,13 @@ class HeatmapView(TimedMplWidget):
             if moving:
                 radius = max((x * x + y * y) ** 0.5, 1.0)
                 scale = VISUALIZATION.vector_scale * speed
-                vector.set_data([x, x + scale * x / radius], [y, y + scale * y / radius])
+                arrow.set_positions(
+                    (x, y),
+                    (x + scale * x / radius, y + scale * y / radius),
+                )
+                arrow.set_visible(True)
             else:
-                vector.set_data([], [])
+                arrow.set_visible(False)
 
         self.canvas.draw_idle()
 
@@ -185,11 +191,10 @@ class HeatmapView(TimedMplWidget):
         self.heat_img.set_data(np.zeros_like(self.heat))
         self.heat_img.set_clim(0.0, 1.0)
         empty = np.array([[np.nan, np.nan]], dtype=np.float64)
-        for trail_line, vector, point, label in zip(
-            self.trail_lines, self.vector_lines, self.current_points, self.target_labels
+        for arrow, point, label in zip(
+            self.vector_arrows, self.current_points, self.target_labels
         ):
-            trail_line.set_data([], [])
-            vector.set_data([], [])
+            arrow.set_visible(False)
             point.set_offsets(empty)
             label.set_visible(False)
         self.canvas.draw_idle()

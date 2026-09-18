@@ -1,4 +1,4 @@
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QGroupBox, QFormLayout, QSpinBox
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QGroupBox, QFormLayout, QSpinBox, QCheckBox
 
 from core.config import RANGES
 from viewmodels.settings_vm import SettingsViewModel
@@ -45,6 +45,11 @@ class SettingsPanel(QWidget):
         self.trail_max.setValue(vm.trail_points_max)
         self.trail_max.valueChanged.connect(vm.set_trail_points_max)
         form.addRow("Макс. точек в трейле:", self.trail_max)
+
+        self.mirror_x = QCheckBox("Инвертировать знак X")
+        self.mirror_x.setChecked(vm.mirror_x)
+        self.mirror_x.toggled.connect(vm.set_mirror_x)
+        form.addRow("Зеркало по оси X:", self.mirror_x)
 
         group.setLayout(form)
         layout.addWidget(group)

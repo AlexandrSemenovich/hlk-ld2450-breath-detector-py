@@ -26,7 +26,7 @@ class ConnectionPage(QWidget):
 
         self.connection_panel = ConnectionPanel(connection_vm)
         self.settings_panel = SettingsPanel(settings_vm)
-        self.info_panel = InfoPanel()
+        self.info_panel = InfoPanel(settings_vm)
         self.clear_btn = QPushButton("Очистить карту")
 
         layout.addWidget(self.connection_panel)

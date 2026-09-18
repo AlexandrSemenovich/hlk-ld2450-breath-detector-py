@@ -8,11 +8,14 @@ from PySide6.QtCore import Qt
 
 from core.config import STYLES, TYPO, UI
 from core.frame import RadarFrame, Target
+from viewmodels.settings_vm import SettingsViewModel
 
 
 class InfoPanel(QWidget):
-    def __init__(self, parent=None):
+    def __init__(self, settings_vm: SettingsViewModel | None = None, parent=None):
         super().__init__(parent)
+        self.settings = settings_vm
+        self._last_frame = None
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
         layout = QVBoxLayout(self)
@@ -72,7 +75,17 @@ class InfoPanel(QWidget):
         stats.setLayout(stats_layout)
         layout.addWidget(stats)
 
+        if settings_vm is not None:
+            settings_vm.changed.connect(self._refresh_frame)
+
     def update_frame(self, frame: RadarFrame):
+        self._last_frame = frame
+        self._refresh_frame()
+
+    def _refresh_frame(self):
+        frame = self._last_frame
+        if frame is None:
+            return
         ts_str = self._format_ts(frame.timestamp_ms)
         self.frame_meta_label.setText(
             f"Timestamp ts_ms: {ts_str}    Frame ID: {frame.frame_id}"
@@ -97,10 +110,11 @@ class InfoPanel(QWidget):
 
     def _format_target(self, index: int, target: Target) -> str:
         status = "есть цель" if target.present else "нет цели"
+        x = -target.x if self.settings is not None and self.settings.mirror_x else target.x
         return (
             f"TARGET {index}  [{status}]\n"
             "--------------------------------\n"
-            f"X: {target.x:6d} мм\n"
+            f"X: {x:6d} мм\n"
             f"Y: {target.y:6d} мм\n"
             f"Скорость: {target.speed:6d} см/с\n"
             f"Разрешение: {target.resolution:6d} мм"

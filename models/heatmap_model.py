@@ -31,6 +31,8 @@ class HeatmapModel:
         self.point_intensity = SETTINGS_DEFAULTS.point_intensity
         self.trail_time_ms = SETTINGS_DEFAULTS.trail_time_ms
         self.trail_points_max = SETTINGS_DEFAULTS.trail_points_max
+        self.mirror_x = SETTINGS_DEFAULTS.mirror_x
+        self._last_occupancy = {"count": 0, "occupied": False, "dwell_s": 0.0}
 
     def _make_gaussian_kernel(self, size=9, sigma=1.5):
         r = size // 2
@@ -117,7 +119,7 @@ class HeatmapModel:
                 speeds.append(0.0)
                 continue
 
-            x, y = float(target.x), float(target.y)
+            x, y = self._map_x(float(target.x)), float(target.y)
             speed = float(target.speed)
             iy, ix = self._mm_to_bin(x, y)
             self._add_kernel_to_heat(iy, ix, add_value)
@@ -137,7 +139,43 @@ class HeatmapModel:
         now_ts = self.last_ts_ms if self.last_ts_ms is not None else 0
         self._update_presence_log(now_ts, presents, speeds)
         occupancy = self._compute_occupancy(now_ts, presents)
+        self._last_occupancy = occupancy
 
+        return self._payload(currents, occupancy, ts, now_ts)
+
+    def _map_x(self, x: float) -> float:
+        return -x if self.mirror_x else x
+
+    def set_mirror_x(self, enabled: bool):
+        enabled = bool(enabled)
+        if self.mirror_x == enabled:
+            return False
+        self.mirror_x = enabled
+        self.heat[:] = np.fliplr(self.heat)
+        for index, trail in enumerate(self.trails):
+            self.trails[index] = deque(
+                (-x, y, ts, speed) for (x, y, ts, speed) in trail
+            )
+        return True
+
+    def payload_from_state(self):
+        ts = self.last_ts_ms
+        currents = []
+        for trail in self.trails:
+            if not trail:
+                currents.append(self._empty_current())
+                continue
+            x, y, _ts, speed = trail[-1]
+            currents.append({
+                "x": x,
+                "y": y,
+                "speed": speed,
+                "present": True,
+            })
+        now_ts = ts if ts is not None else 0
+        return self._payload(currents, self._last_occupancy, ts, now_ts)
+
+    def _payload(self, currents, occupancy, ts, now_ts):
         trails = []
         scene_trails = []
         trails_points = []
@@ -298,5 +336,6 @@ class HeatmapModel:
         self.last_ts_ms = None
         self._occupied_since_ms = None
         self.presence_log.clear()
+        self._last_occupancy = {"count": 0, "occupied": False, "dwell_s": 0.0}
         for trail in self.trails:
             trail.clear()

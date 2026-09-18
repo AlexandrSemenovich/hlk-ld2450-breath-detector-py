@@ -19,6 +19,8 @@ class HeatmapViewModel(QObject):
         self.model.point_intensity = self.settings.point_intensity
         self.model.trail_time_ms = self.settings.trail_time_ms
         self.model.trail_points_max = self.settings.trail_points_max
+        if self.model.set_mirror_x(self.settings.mirror_x):
+            self.updated.emit(self.model.payload_from_state())
 
     def ingest(self, frame):
         payload = self.model.ingest(frame)
